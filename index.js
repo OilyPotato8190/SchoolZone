@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer');
+const pdf = require('pdf-parse');
 
 async function main() {
    async function login(username, password) {
@@ -14,46 +15,67 @@ async function main() {
       await page.goto('https://schoolzone.epsb.ca/cf/profile/progressInterim/index.cfm');
       await page.waitForSelector('#reportsTable tr');
 
-      const rows = await page.evaluate(() => {
-         const rowElements = Array.from(document.querySelectorAll('#reportsTable tr'));
-         let rows = [];
+      const rows = await page.evaluate(getRows);
 
-         for (let i = 0; i < rowElements.length; i++) {
-            const row = rowElements[i];
-            let rowData = {};
+      const text = await getPDFText(
+         'https://schoolzone.epsb.ca/cf/profile/progressInterim/Launch.cfm?sequenceNo=50768324&signature=624B20BE90C2EA450CB604CC18D34880322505438945FF5323739872D8056EBF'
+      );
+   }
 
-            const cells = Array.from(row.querySelectorAll('td'));
-            for (let j = 0; j < cells.length; j++) {
-               const cell = cells[j];
+   async function getPDFText(url) {
+      const pdfArray = await page.evaluate(async (url) => {
+         const response = await fetch(url);
+         const blob = await response.blob();
+         return Array.from(new Uint8Array(await blob.arrayBuffer()));
+      }, url);
+      const pdfData = await pdf(Buffer.from(pdfArray));
+      return pdfData.text;
+   }
 
-               switch (j) {
-                  case 0:
-                     rowData.category = cell.textContent;
-                     break;
-                  case 1:
-                     rowData.class = cell.textContent;
-                     break;
-                  case 2:
-                     rowData.date = cell.textContent;
-                     break;
-                  case 3:
-                     let href = cell.querySelector('a').getAttribute('href');
-                     let link = 'https://schoolzone.epsb.ca/cf/profile/progressInterim/Launch.cfm?' + href.slice(25, -12);
-                     rowData.report = link;
-                     break;
-                  case 4:
-                     rowData.parentViewed = cell.textContent;
-                     break;
-                  case 5:
-                     rowData.studentViewed = cell.textContent;
-                     break;
-               }
+   function getRows() {
+      function getRowData(row) {
+         let rowData = {};
+
+         const cells = Array.from(row.querySelectorAll('td'));
+         if (!cells.length) return;
+
+         for (let j = 0; j < cells.length; j++) {
+            const cell = cells[j];
+
+            switch (j) {
+               case 0:
+                  if (cell.textContent != 'Interim Marks') return;
+                  break;
+               case 1:
+                  rowData.class = cell.textContent;
+                  break;
+               case 2:
+                  rowData.date = cell.textContent;
+                  break;
+               case 3:
+                  let href = cell.querySelector('a').getAttribute('href');
+                  let link = 'https://schoolzone.epsb.ca/cf/profile/progressInterim/Launch.cfm?' + href.slice(25, -12);
+                  rowData.report = link;
+                  break;
+               case 5:
+                  rowData.studentViewed = cell.textContent;
+                  break;
             }
+         }
+
+         return rowData;
+      }
+
+      const rowElements = Array.from(document.querySelectorAll('#reportsTable tr'));
+      let rows = [];
+
+      for (let i = 0; i < rowElements.length; i++) {
+         const rowData = getRowData(rowElements[i]);
+         if (rowData) {
             rows.push(rowData);
          }
-         return rows;
-      });
-      console.log(rows);
+      }
+      return rows;
    }
 
    const browser = await puppeteer.launch({ headless: 'new' });
