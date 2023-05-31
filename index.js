@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const pdf = require('pdf-parse');
+const PdfReader = import('pdfreader');
 
 async function main() {
    async function login(username, password) {
@@ -17,19 +18,72 @@ async function main() {
 
       const rows = await page.evaluate(getRows);
 
-      const text = await getPDFText(
-         'https://schoolzone.epsb.ca/cf/profile/progressInterim/Launch.cfm?sequenceNo=50768324&signature=624B20BE90C2EA450CB604CC18D34880322505438945FF5323739872D8056EBF'
+      const pdfBuffer = await getPDFBuffer(
+         'https://schoolzone.epsb.ca/cf/profile/progressInterim/Launch.cfm?sequenceNo=52310755&signature=0CB90CFE6528626F10E45CA53E4F4B6506B316F485C90240A9B2E29FE4A043CD'
       );
+
+      console.log(await readPDF(pdfBuffer));
+
+      // const text = await getPDFText(
+      //    'https://schoolzone.epsb.ca/cf/profile/progressInterim/Launch.cfm?sequenceNo=50768324&signature=624B20BE90C2EA450CB604CC18D34880322505438945FF5323739872D8056EBF'
+      // );
    }
 
-   async function getPDFText(url) {
+   async function readPDF(buffer) {
+      let pdfData = [];
+      const pdfReader = new (await PdfReader).PdfReader();
+
+      let finish;
+      let finishReading = new Promise(function (resolve) {
+         finish = resolve;
+      });
+
+      pdfReader.parseBuffer(buffer, (_err, item) => {
+         if (!item) return finish();
+         if (!item.text) return;
+
+         const text = item.text;
+         console.log(text);
+         if (text.includes('Class')) {
+            pdfData.push({ class: text.split(') ')[1].split(' (')[0] });
+         } else if (text.includes('Teacher')) {
+            pdfData[0].teacher = text.replace('Teacher: ', '');
+         } else if (pdfData.length === 1 && text.includes('%') && text.length > 1) {
+            pdfData[0].finalMark = text;
+         } else if (pdfData.length === 1 && text.includes('Flags')) {
+            pdfData.push({}, {});
+         } else if (pdfData.length > 1) {
+            const index = pdfData.length - 2;
+
+            if (pdfData[index + 1])
+               if (text.split('/').length === 3) {
+                  pdfData[index].date = text;
+               } else if (text === 'Category Summary') {
+                  pdfData[index + 1];
+               } else if (text.includes('Major') || text.includes('Minor') || text.includes('Formative')) {
+                  pdfData[index].type = text.split(' ')[0];
+               } else if (!pdfData[index].name && isNaN(text)) {
+                  pdfData[index].name = text;
+               } else if (text.includes('%') && !isNaN(text.replace('%', ''))) {
+                  pdfData[index].mark = text;
+                  pdfData.push({});
+               }
+         }
+      });
+
+      await finishReading;
+      return pdfData;
+   }
+
+   async function getPDFBuffer(url) {
       const pdfArray = await page.evaluate(async (url) => {
          const response = await fetch(url);
          const blob = await response.blob();
          return Array.from(new Uint8Array(await blob.arrayBuffer()));
       }, url);
-      const pdfData = await pdf(Buffer.from(pdfArray));
-      return pdfData.text;
+      return Buffer.from(pdfArray);
+      // const pdfData = await pdf(Buffer.from(pdfArray));
+      // return pdfData.text;
    }
 
    function getRows() {
@@ -80,7 +134,6 @@ async function main() {
 
    const browser = await puppeteer.launch({ headless: 'new' });
    const page = await browser.newPage();
-   page.on('console', (message) => console.log(message.text()));
    await login('o.schneider', 'KjvFSNMHbhAC8q');
    let progress = await getProgress();
 }
