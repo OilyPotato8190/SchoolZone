@@ -2,6 +2,9 @@ const puppeteer = require('puppeteer');
 const pdf = require('pdf-parse');
 const PdfReader = import('pdfreader');
 
+let password = process.env.PASSWORD;
+let username = process.env.USERNAME;
+
 async function main() {
    async function login(username, password) {
       await page.goto('https://schoolzone.epsb.ca/cf/index.cfm');
@@ -134,7 +137,7 @@ async function main() {
 
    const browser = await puppeteer.launch({ headless: 'new' });
    const page = await browser.newPage();
-   await login('o.schneider', 'KjvFSNMHbhAC8q');
+   await login(username, password);
    let progress = await getProgress();
 }
 
