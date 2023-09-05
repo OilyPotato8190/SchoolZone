@@ -19,13 +19,15 @@ async function main() {
       await page.goto('https://schoolzone.epsb.ca/cf/profile/progressInterim/index.cfm');
       await page.waitForSelector('#reportsTable tr');
 
-      const rows = await page.evaluate(getRows);
+      const rowElement = page.$("#reportsTable");
+      const rows = getRows(rowElement);
+      console.log(rows)
 
-      const pdfBuffer = await getPDFBuffer(
-         'https://schoolzone.epsb.ca/cf/profile/progressInterim/Launch.cfm?sequenceNo=52310755&signature=0CB90CFE6528626F10E45CA53E4F4B6506B316F485C90240A9B2E29FE4A043CD'
-      );
+      // const pdfBuffer = await getPDFBuffer(
+      //    'https://schoolzone.epsb.ca/cf/profile/progressInterim/Launch.cfm?sequenceNo=52310755&signature=0CB90CFE6528626F10E45CA53E4F4B6506B316F485C90240A9B2E29FE4A043CD'
+      // );
 
-      console.log(await readPDF(pdfBuffer));
+      // console.log(await readPDF(pdfBuffer));
 
       // const text = await getPDFText(
       //    'https://schoolzone.epsb.ca/cf/profile/progressInterim/Launch.cfm?sequenceNo=50768324&signature=624B20BE90C2EA450CB604CC18D34880322505438945FF5323739872D8056EBF'
@@ -89,7 +91,7 @@ async function main() {
       // return pdfData.text;
    }
 
-   function getRows() {
+   function getRows(tableElement) {
       function getRowData(row) {
          let rowData = {};
 
@@ -123,7 +125,7 @@ async function main() {
          return rowData;
       }
 
-      const rowElements = Array.from(document.querySelectorAll('#reportsTable tr'));
+      const rowElements = Array.from(tableElement);
       let rows = [];
 
       for (let i = 0; i < rowElements.length; i++) {
